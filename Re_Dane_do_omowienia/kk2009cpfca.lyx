@@ -1,0 +1,4050 @@
+#LyX 2.0 created this file. For more info see http://www.lyx.org/
+\lyxformat 413
+\begin_document
+\begin_header
+\textclass llncs
+\begin_preamble
+\usepackage[vlined,algoruled,noresetcount]{algorithm2e} 
+\end_preamble
+\use_default_options false
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman default
+\font_sans default
+\font_typewriter default
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100
+\font_tt_scale 100
+
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\spacing single
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_amsmath 1
+\use_esint 1
+\use_mhchem 1
+\use_mathdots 1
+\cite_engine basic
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\use_refstyle 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Title
+Two Concurrent Algorithms of Discrete Potential Field Construction
+\end_layout
+
+\begin_layout Author
+Konrad Kułakowski, Jarosław Wąs
+\end_layout
+
+\begin_layout Institute
+Institute of Automatics,
+\begin_inset Newline newline
+\end_inset
+
+AGH University of Science and Technology
+\begin_inset Newline newline
+\end_inset
+
+Al.
+ Mickiewicza 30, 
+\begin_inset Newline newline
+\end_inset
+
+30-059 Cracow, Poland
+\end_layout
+
+\begin_layout Abstract
+Increasing demand for computational power in contemporary constructions
+ has created the need to build faster CPUs and construct more efficient
+ algorithms.
+ In this context especially the concurrent algorithms seem to be very promising.
+ Depending on the number of available CPUs they may offer significant reductions
+ in computation time.
+ 
+\end_layout
+
+\begin_layout Abstract
+In this article two concurrent algorithms of potential field generation
+ are proposed.
+ They present two different approaches to problem domain partitioning called
+ by the authors respectively as 
+\emph on
+tearing
+\emph default
+ and 
+\emph on
+nibbling
+\emph default
+.
+ It is shown that depending on the problem topology either 
+\emph on
+Tear
+\emph default
+ algorithm or 
+\emph on
+Nibble
+\emph default
+ algorithm is faster.
+ Conclusions are summed up in form of experimental results presenting how
+ the algorithms work in practice.
+ However algorithms construct a discrete potential field according to some
+ specific scheme, there should be no major problems with generalization
+ them to other potential field schemes.
+\end_layout
+
+\begin_layout Section
+Introduction
+\end_layout
+
+\begin_layout Standard
+Potential field as a way of describing a space's local property is very
+ popular in many different fields of science, such as physics, chemistry
+ or mathematics.
+ In computer science and automatics potential field is very often used in
+ robot path planning 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Geraerts2007tcmm,Heinemann2006ippi,Wang2000anpf,Barraquand1992npft"
+
+\end_inset
+
+, navigation and simulation of complex phenomena, such as pedestrian dynamics
+ 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Kretz2008covm,DudekDyduch2006,Treuille2006cc"
+
+\end_inset
+
+.
+ Depending on their specific application, potential fields may have different
+ representations and construction algorithms.
+ One possible form of discrete potential field is a regular grid, where
+ the value of potential is assigned to every cell of a space 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Murphy2000itar,Behrig2000aafr"
+
+\end_inset
+
+.
+ Such a grid represents the occupancy of a space 
+\emph on
+(occupancy grid)
+\emph default
+ in which every cell may have several states corresponding to different
+ types of objects that may occupy the cell (figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:fp_for_small_room_8x8"
+
+\end_inset
+
+).
+ Every cell has a value of potential assigned to it.
+ Thus, every object in a space may find a collision-free way to potential
+ sources (points of interest) by following the increasing or decreasing
+ potential values.
+ This property is often used in different navigation algorithms using potential
+ field 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Behrig2000aafr,Xiaoxi2008ppbo"
+
+\end_inset
+
+.
+ In static models, potential field is constructed once, at the beginning
+ of path planning or simulation.
+ In dynamically changing environments, potential field has to be recalculated
+ every time the environment is changed.
+ In such cases the time indispensable for re-construction of potential field
+ may significantly impact on the total time of simulation, step of path
+ planning routine etc.
+ For this reason it is important to work on practical and efficient algorithms
+ of potential field construction.
+ 
+\end_layout
+
+\begin_layout Standard
+In this paper two such algorithms are presented.
+ They are designed to be run on MIMD 
+\emph on
+(Multiple Instructions, Multiple Data)
+\emph default
+ architecture with shared memory 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Flynn1972scoa"
+
+\end_inset
+
+.
+ Both algorithms minimize the computation time in comparison to their sequential
+ versions.
+ The obtained speedup depends on the space topology and might be different
+ for each algorithm.
+ Experimental results are also presented.
+\end_layout
+
+\begin_layout Standard
+Both algorithms are presented using 
+\begin_inset Quotes eld
+\end_inset
+
+object-oriented pseudo-code
+\begin_inset Quotes erd
+\end_inset
+
+.
+ Although the authors hope it is intuitive, it seems that some syntactic
+ elements need to be explained in more detail.
+ Thus, all the beginnings and endings of classes and methods are denoted
+ by phrase 
+\emph on
+class
+\emph default
+, 
+\emph on
+end class
+\emph default
+, 
+\emph on
+method
+\emph default
+, 
+\emph on
+end method
+\emph default
+.
+ Blocks of code are written using the same indentation depth.
+ The assignment operator is denoted with the help of the sign 
+\begin_inset Formula $\leftarrow$
+\end_inset
+
+ and the method call on an object is denoted by 
+\begin_inset Quotes eld
+\end_inset
+
+.
+\begin_inset Quotes erd
+\end_inset
+
+ operator.
+ 
+\end_layout
+
+\begin_layout Section
+Potential Field Construction
+\end_layout
+
+\begin_layout Standard
+For the purpose of this paper a rather simple function describing the distributi
+on of potential has been chosen.
+ The space for which the potential field is defined is represented by an
+ occupancy grid with square cells.
+ Every cell may represent an obstacle, an empty space, or a source of potential
+ (e.g.
+ a door in the case of indoor pedestrian dynamics).
+ The Moore neighbourhood defined for the cell 
+\begin_inset Formula $c$
+\end_inset
+
+ is a set of eight cells where each has at least one point of its border
+ common with the border of 
+\begin_inset Formula $c$
+\end_inset
+
+.
+ The Moore neighbourhood of 
+\begin_inset Formula $c$
+\end_inset
+
+ will be denoted by 
+\begin_inset Formula $M(c)$
+\end_inset
+
+.
+ So, the potential function 
+\begin_inset Formula $f_{p}$
+\end_inset
+
+ for the cell 
+\begin_inset Formula $c$
+\end_inset
+
+ is defined as follows:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{equation}
+f_{p}(c)=\begin{cases}
+0 & \Longleftrightarrow c\mbox{ represents a potential source}\\
+1+\min_{k\in M(c)}(f_{p}(k)) & \Longleftrightarrow c\mbox{ represents an empty space}\\
+\mbox{not defined}\, & \Longleftrightarrow c\mbox{ represents an obstacle}
+\end{cases}
+\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+In the figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:fp_for_small_room_8x8"
+
+\end_inset
+
+ we can see the hypothetical space with two potential sources (brighter
+ squares on the left and upper edge) with the 
+\begin_inset Formula $f_{p}$
+\end_inset
+
+ calculated for every cell of the space which is not an obstacle (black
+ cells).
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename fig/pole_pot_rozklad_rect_8x8.eps
+	scale 50
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+Distribution of 
+\begin_inset Formula $f_{p}$
+\end_inset
+
+ for the small room (space) with two doors (two potential sources)
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:fp_for_small_room_8x8"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+It is worth noticing that the calculation of 
+\begin_inset Formula $f_{p}(c)$
+\end_inset
+
+ is local, which means that only a few other cells' 
+\begin_inset Formula $f_{p}$
+\end_inset
+
+ (to be more precise their Moore neighbourhood) have to be known to estimate
+ 
+\begin_inset Formula $f_{p}(c)$
+\end_inset
+
+.
+ This fact enables parallelization of the whole potential field calculation
+ process.
+ Since many other potential construction algorithms require only local informati
+on to compute the value of potential in the given place, this fact should
+ also allow the presented solutions to be generalized to the other types
+ of potential fields e.g.
+ using different definitions of distance 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Kretz2008covm"
+
+\end_inset
+
+ etc.
+ Another benefit of 
+\begin_inset Formula $f_{p}$
+\end_inset
+
+ is that the potential field described by this function is local minima
+ free and trap free.
+ 
+\end_layout
+
+\begin_layout Subsection
+Class Task
+\end_layout
+
+\begin_layout Standard
+The common part of both the 
+\emph on
+Tear
+\emph default
+ and 
+\emph on
+Nibble
+\emph default
+ algorithms is a class 
+\emph on
+Task
+\emph default
+ (listing 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "listing:task_code"
+
+\end_inset
+
+).
+ This constructs the value of potential for some cells following the scheme
+ given by the function 
+\begin_inset Formula $f_{p}$
+\end_inset
+
+.
+
+\emph on
+ 
+\emph default
+The class
+\emph on
+ Task
+\emph default
+ has two fields: 
+\emph on
+row
+\emph default
+ and 
+\emph on
+nextRow
+\emph default
+.
+ The whole calculation take places in the function 
+\emph on
+makeStep()
+\emph default
+.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+SetAlFnt{
+\backslash
+small
+\backslash
+sf}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+IncMargin{1em}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+LinesNumbered  
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{algorithm}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\series bold
+class
+\series default
+ Task 
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+row
+\emph default
+ 
+\series bold
+
+\begin_inset CommandInset label
+LatexCommand label
+name "code:task_row_declaration"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\emph on
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+nextRow
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace smallskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+method
+\series default
+ Task(Cell source) 
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+row
+\emph default
+.add(source)
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+end method
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace smallskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+method
+\series default
+ makeStep()
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+foreach
+\series default
+ 
+\emph on
+c
+\emph default
+ 
+\series bold
+in
+\series default
+ 
+\emph on
+row 
+\series bold
+\emph default
+do
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+mr
+\emph default
+ 
+\begin_inset Formula $\leftarrow$
+\end_inset
+
+ getMooreNeighbourhood(c)
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+foreach
+\series default
+ 
+\emph on
+m
+\emph default
+ 
+\series bold
+in
+\series default
+ 
+\emph on
+mr
+\emph default
+ 
+\series bold
+do
+\begin_inset CommandInset label
+LatexCommand label
+name "code:task_code_listing_moore_neigh_iteration"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+lock the access to 
+\emph on
+m
+\emph default
+ and 
+\emph on
+c
+\series bold
+\emph default
+
+\begin_inset CommandInset label
+LatexCommand label
+name "code:task_code_listing_sync_block_begin"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+if
+\series default
+ 
+\emph on
+c
+\emph default
+.
+\emph on
+potential
+\emph default
+ + 1 < 
+\emph on
+m.potential
+\emph default
+ 
+\series bold
+then 
+\begin_inset CommandInset label
+LatexCommand label
+name "code:task_code_listing_pot_function_calc_begin"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+m.potential
+\emph default
+ 
+\begin_inset Formula $\leftarrow$
+\end_inset
+
+ 
+\emph on
+c.potential + 1
+\begin_inset CommandInset label
+LatexCommand label
+name "code:task_code_listing_pot_function_calc_end"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+nextRow
+\emph default
+.add(m);
+\begin_inset CommandInset label
+LatexCommand label
+name "code:task_code_listing_nextRow_building"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+unlock the access to cells 
+\emph on
+m
+\emph default
+ and 
+\emph on
+c
+\series bold
+\emph default
+
+\begin_inset CommandInset label
+LatexCommand label
+name "code:task_code_listing_sync_block_end"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+row
+\emph default
+ 
+\begin_inset Formula $\leftarrow$
+\end_inset
+
+ 
+\emph on
+nextRow
+\emph default
+
+\begin_inset CommandInset label
+LatexCommand label
+name "code:task_code_listing_row_set_to_nextRow"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+makeEmpty(
+\emph on
+nextRow
+\emph default
+)
+\end_layout
+
+\begin_layout Standard
+
+\series bold
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+end method
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace smallskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+method
+\series default
+ isNotFinished() 
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+return
+\series default
+ 
+\emph on
+row
+\emph default
+.isNotEmpty()
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+end method
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace smallskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\series bold
+end class
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+NoCaptionOfAlgo
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+caption{
+\backslash
+textbf{Code Listing 
+\backslash
+thealgocf:} Task class responsible for local potential field calculation}
+ 
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "listing:task_code"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{algorithm}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+DecMargin{1em}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+bigskip
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+At the very beginning of this method the 
+\emph on
+row
+\emph default
+ contains cells for which the value of potential is known, whilst the 
+\emph on
+nextRow
+\emph default
+ is empty.
+ While browsing the Moore neighbourhoods for every cell 
+\emph on
+c
+\emph default
+ coming from 
+\emph on
+row
+\emph default
+ (line 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:task_code_listing_moore_neigh_iteration"
+
+\end_inset
+
+) the potential value for every neighbour of 
+\emph on
+c
+\emph default
+ is calculated (lines 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:task_code_listing_pot_function_calc_begin"
+
+\end_inset
+
+ - 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:task_code_listing_pot_function_calc_end"
+
+\end_inset
+
+).
+ Every cell which gets a new value of potential is added to 
+\emph on
+nextRow 
+\emph default
+(line 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:task_code_listing_nextRow_building"
+
+\end_inset
+
+).
+ This is because the cell may impact on the potential values of its neighbours,
+ so it should be taken into further consideration (line 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:task_code_listing_row_set_to_nextRow"
+
+\end_inset
+
+).
+ Different tasks may be executed in different concurrent threads.
+ Because cells are the resources shared between tasks every read and write
+ value of potential from a cell has to be protected by a monitor.
+ In the class 
+\emph on
+Task
+\emph default
+ the synchronization block simultaneously protects access to the two variables
+ 
+\emph on
+c
+\emph default
+ and 
+\emph on
+m
+\emph default
+ (lines 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:task_code_listing_sync_block_begin"
+
+\end_inset
+
+ - 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:task_code_listing_sync_block_end"
+
+\end_inset
+
+).
+ In the case of 
+\emph on
+c
+\emph default
+ the monitor protects the read access whilst in the case of 
+\emph on
+m
+\emph default
+ it protects read and write access.
+ The task is considered as finished if there are no cells for further processing
+ in the 
+\emph on
+row
+\emph default
+.
+ In such a case the second call of 
+\emph on
+makeStep()
+\emph default
+ over the given worker is not necessary.
+ Thus the typical usage of instance of the class 
+\emph on
+Tasks
+\emph default
+ consists of initialization of the 
+\emph on
+row
+\emph default
+ (by e.g.
+ a potential source) and successive calls of the methods: 
+\emph on
+makeStep()
+\emph default
+ and 
+\emph on
+isNotFinished()
+\emph default
+.
+ 
+\end_layout
+
+\begin_layout Subsection
+Tear algorithm
+\end_layout
+
+\begin_layout Standard
+The algorithm implemented by the class 
+\emph on
+Task
+\emph default
+ (listing 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "listing:task_code"
+
+\end_inset
+
+) allows for computation of potential field generated by a single potential
+ source.
+ Thus, calculation of potential field with respect to many potential sources
+ requires subsequent calls of 
+\emph on
+makeStep()
+\emph default
+ over all the tasks associated with these sources.
+ 
+\begin_inset Float figure
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="2" columns="2">
+<features tabularvalignment="middle">
+<column alignment="center" valignment="top" width="0">
+<column alignment="center" valignment="top" width="0">
+<row>
+<cell alignment="center" valignment="top" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Graphics
+	filename /Users/konrad/work/science/pubs/2009/algPolaPotencjalnego/fig/pole_pot_threads_rect_v1.png
+	scale 40
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset Graphics
+	filename /Users/konrad/work/science/pubs/2009/algPolaPotencjalnego/fig/pole_pot_threads_corridor_v1b.png
+	scale 40
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+(a)
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+(b)
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+Workers' distribution in 
+\emph on
+Tear
+\emph default
+ algorithms for two different topologies.
+ (a)
+\begin_inset space ~
+\end_inset
+
+a
+\begin_inset space ~
+\end_inset
+
+square space (
+\begin_inset Formula $30\times30$
+\end_inset
+
+ cells) with eight potential sources and eight workers and, (b)
+\begin_inset space ~
+\end_inset
+
+a
+\begin_inset space ~
+\end_inset
+
+space with a corridor where six potential sources are placed closely to
+ each other at the end of the corridor, and two potential sources are placed
+ at the beginning of the corridor.
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:workers_distrib_v1_rect_and_corridor"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+ Since different workers may have different sets of tasks, the whole calculation
+ can be done concurrently.
+ The 
+\emph on
+Tear
+\emph default
+ algorithm (listing 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "listing:tear_code"
+
+\end_inset
+
+) is just an implementation of this concurrent computation scheme.
+ The 
+\emph on
+Tear
+\emph default
+ algorithm starts with initialization of variables storing potential sources
+ and workers (lines 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:tear_algorithm_pot_src_init"
+
+\end_inset
+
+, 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:tear_algorithm_workers_init"
+
+\end_inset
+
+).
+ It is assumed that there are as many task objects as potential sources
+ and as many workers as logical processors (hereafter referred to as CPUs)
+ in the system.
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+bigskip
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+IncMargin{1em}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+LinesNumbered
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{algorithm}
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\series bold
+method
+\series default
+ TearPotentialFieldMaker
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+sources
+\emph default
+ 
+\begin_inset Formula $\leftarrow$
+\end_inset
+
+ initPotSources()
+\begin_inset CommandInset label
+LatexCommand label
+name "code:tear_algorithm_pot_src_init"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+workers
+\emph default
+ 
+\begin_inset Formula $\leftarrow$
+\end_inset
+
+ initWorkers()
+\begin_inset CommandInset label
+LatexCommand label
+name "code:tear_algorithm_workers_init"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+foreach
+\series default
+ 
+\emph on
+s
+\emph default
+ 
+\series bold
+in
+\series default
+ 
+\emph on
+sources
+\emph default
+ 
+\series bold
+do
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+w
+\emph default
+ 
+\begin_inset Formula $\leftarrow$
+\end_inset
+
+ chooseFrom(
+\emph on
+workers
+\emph default
+)
+\begin_inset CommandInset label
+LatexCommand label
+name "code:tear_algorithm_workers_tasks_assignment_begin"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+t 
+\emph default
+
+\begin_inset Formula $\leftarrow$
+\end_inset
+
+ Task(
+\emph on
+s
+\emph default
+)
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+w
+\emph default
+.add(
+\emph on
+t
+\emph default
+)
+\begin_inset CommandInset label
+LatexCommand label
+name "code:tear_algorithm_workers_tasks_assignment_end"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+parfor
+\series default
+ 
+\emph on
+w
+\emph default
+ 
+\series bold
+in
+\series default
+ 
+\emph on
+workers
+\emph default
+ 
+\series bold
+do 
+\series default
+
+\begin_inset CommandInset label
+LatexCommand label
+name "code:tear_algorithm_workers_start"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+w
+\emph default
+.go()
+\end_layout
+
+\begin_layout Standard
+
+\series bold
+end method
+\series default
+
+\begin_inset VSpace medskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\series bold
+class
+\series default
+ Worker {
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+Queue 
+\emph on
+taskQueue
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace smallskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+method
+\series default
+ add(task)
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+taskQueue
+\emph default
+.add(task)
+\begin_inset CommandInset label
+LatexCommand label
+name "code:tear_algorithm_task_queuing_1"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+end method
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace smallskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+method
+\series default
+ go() {
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+repeat
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+Task 
+\emph on
+t
+\emph default
+ 
+\begin_inset Formula $\leftarrow$
+\end_inset
+
+ 
+\emph on
+taskQueue
+\emph default
+.poll()
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+t
+\emph default
+.makeStep()
+\begin_inset CommandInset label
+LatexCommand label
+name "code:tear_algorithm_task_step_making"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+if
+\series default
+ 
+\emph on
+t
+\emph default
+.isNotFinished() 
+\series bold
+then
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+taskQueue
+\emph default
+.add(
+\emph on
+t
+\emph default
+)
+\begin_inset CommandInset label
+LatexCommand label
+name "code:tear_algorithm_task_queuing_2"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+until
+\series default
+ 
+\emph on
+taskQueue
+\emph default
+.isEmpty()
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+end method
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace smallskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\series bold
+end class
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+NoCaptionOfAlgo
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+caption{
+\backslash
+textbf{Code listing 
+\backslash
+thealgocf:} Tear concurrent potenential field generation algorithm} 
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "listing:tear_code"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{algorithm}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+DecMargin{1em}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+bigskip
+\end_layout
+
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout Standard
+Next, the tasks are evenly assigned to the workers (lines 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:tear_algorithm_workers_tasks_assignment_begin"
+
+\end_inset
+
+, 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:tear_algorithm_workers_tasks_assignment_end"
+
+\end_inset
+
+), then all the workers start concurrently (line 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:tear_algorithm_workers_start"
+
+\end_inset
+
+).
+ Since there might be more tasks than workers (usually there are many potential
+ sources but only a limited number of CPUs) a single worker has to be able
+ to handle more than one task.
+ Thus the core functionality of the class 
+\emph on
+Worker
+\emph default
+ relies on queuing tasks (lines 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:tear_algorithm_task_queuing_1"
+
+\end_inset
+
+, 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:tear_algorithm_task_queuing_2"
+
+\end_inset
+
+) and subsequent calculation steps over the queued tasks (line 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:tear_algorithm_task_step_making"
+
+\end_inset
+
+).
+ Recurrent calling of 
+\emph on
+makeStep()
+\emph default
+ over the given task lasts as long as the task is not finished.
+ Observing how workers calculate the value of potential for different cells,
+ some may think that every worker tries to tear for itself as much of the
+ space as possible.
+ In figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:workers_distrib_v1_rect_and_corridor"
+
+\end_inset
+
+ we can see the result of 
+\emph on
+Tear
+\emph default
+ applied to two spaces of different shapes.
+ Distinct colors (shades of grey) represent distinct workers.
+ 
+\begin_inset Formula $\noindent$
+\end_inset
+
+The difference in the cell count computed by different threads comes from
+ the fact that for test purposes the 
+\emph on
+parfor
+\emph default
+ command has been implemented as an ordinary 
+\emph on
+for
+\emph default
+ command and workers, in fact, are started subsequently in loop.
+ In such a small space as 
+\begin_inset Formula $30\times30$
+\end_inset
+
+ cells the order of running workers is important, however, in larger spaces
+ it does not matter.
+ The strength of the 
+\emph on
+Tear
+\emph default
+ algorithm relies on its simplicity.
+ It is a natural concurrent generalization of a sequential algorithm generating
+ potential field according to the scheme given by the function 
+\begin_inset Formula $f_{p}$
+\end_inset
+
+.
+ It uses only one synchronization block connected directly with updating
+ the potential value in cells.
+ This fact, connected with the algorithms' simplicity makes them reasonably
+ fast and easy to implement.
+ Permanent assignment of a potential source to a task and a task to a worker
+ makes the algorithm simple, but it also means they are not flexible enough
+ in spaces with more complex topologies.
+ For instance, workers that have tasks holding potential sources actually
+ placed close together are able to tear less space than workers with tasks
+ having potential sources located far from each other.
+ An example of such a situation is presented in the figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:workers_distrib_v1_rect_and_corridor"
+
+\end_inset
+
+b.
+ Here it might be observed how two workers responsible for two different
+ potential sources 
+\begin_inset Quotes eld
+\end_inset
+
+close
+\begin_inset Quotes erd
+\end_inset
+
+ the exit of the corridor and do not allow the other workers to reach the
+ main part of the space.
+ As a result two workers out of eight do over eighty percent of the indispensabl
+e calculation, which is of course not optimum.
+ For this reason more complex topologies require an algorithm which is able
+ to allocate the computations more evenly.
+\end_layout
+
+\begin_layout Subsection
+Nibble algorithm
+\end_layout
+
+\begin_layout Standard
+Whilst the 
+\emph on
+Tear
+\emph default
+ algorithm might be not efficient in some specific cases, the new 
+\emph on
+Nibble
+\emph default
+ algorithm (listing 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "listing:nibble_code"
+
+\end_inset
+
+) tries to overcome this problem.
+ In the new algorithm the assignment task to a worker is not fixed and it
+ might change once per step.
+ Moreover it is possible to split a task into several sub-tasks if the task
+ is too large.
+ As a result, one worker may calculate values of potential in many different
+ parts of the space.
+ It looks like the worker would like to nibble some cell here, a little
+ bit there (figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:workers_distrib_v2_rect_and_corridor"
+
+\end_inset
+
+a and 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:workers_distrib_v2_rect_and_corridor"
+
+\end_inset
+
+b).
+ 
+\begin_inset Float figure
+placement H
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="2" columns="2">
+<features tabularvalignment="middle">
+<column alignment="center" valignment="top" width="0">
+<column alignment="center" valignment="top" width="0">
+<row>
+<cell alignment="center" valignment="top" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Graphics
+	filename /Users/konrad/work/science/pubs/2009/algPolaPotencjalnego/fig/pole_pot_threads_rect_v2.png
+	scale 40
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset Graphics
+	filename /Users/konrad/work/science/pubs/2009/algPolaPotencjalnego/fig/pole_pot_threads_corridor_v2.png
+	scale 40
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+(a)
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+(b)
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+Workers' distribution in a 
+\emph on
+Nibble
+\emph default
+ algorithm applied to (a)
+\begin_inset space ~
+\end_inset
+
+a
+\begin_inset space ~
+\end_inset
+
+square space, (b)
+\begin_inset space ~
+\end_inset
+
+a
+\begin_inset space ~
+\end_inset
+
+space with a corridor,
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:workers_distrib_v2_rect_and_corridor"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+ At the beginning, the 
+\emph on
+Nibble
+\emph default
+ algorithm (similarly to 
+\emph on
+Tear
+\emph default
+ one) prepares potential sources and workers (lines 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:nibble_algorithm_pot_src_init"
+
+\end_inset
+
+, 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:nibble_algorithm_workers_init"
+
+\end_inset
+
+).
+ Next, (line 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:nibble_algorithm_worker_manager_init"
+
+\end_inset
+
+) the 
+\emph on
+WorkerManager
+\emph default
+ object is initialized.
+ This object is responsible for workers' pooling and assigning tasks to
+ workers.
+ Since its functionality agrees with a thread pool pattern known from literature
+ 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Lea1999cpij"
+
+\end_inset
+
+ it is not discussed here in detail.
+ In the next two lines the first group of tasks are scheduled for execution.
+ Every task is initialized by a single potential source.
+ The most significant difference between 
+\emph on
+Tear
+\emph default
+ and 
+\emph on
+Nibble
+\emph default
+ algorithms might be observed in the 
+\emph on
+Worker's
+\emph default
+ method 
+\emph on
+go()
+\emph default
+ (lines 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:nibble_algorithm_go_begin"
+
+\end_inset
+
+ -- 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:nibble_algorithm_go_end"
+
+\end_inset
+
+).
+ First (line 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:nibble_algorithm_task_size_check"
+
+\end_inset
+
+), it is checked whether the given task is not to large (i.e.
+ whether the list of cells intended to process in the current step) is not
+ larger than the sum of the size of all the processed tasks divided by the
+ number of workers.
+ If so, the current task
+\emph on
+ 
+\emph default
+(line 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:task_row_declaration"
+
+\end_inset
+
+) is split into an appropriate number of sub-tasks (Task splitting relies
+ on dividing the list variable 
+\emph on
+row
+\emph default
+ into sub-lists).
+ Next, all the sub-tasks but one are scheduled for execution by the 
+\emph on
+WorkerManager
+\emph default
+.
+ Then, the method 
+\emph on
+makeStep()
+\emph default
+ of the left task is called (line 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:nibble_algorithm_task_makeStep"
+
+\end_inset
+
+).
+ Afterwards it is checked whether the task is not finished (line 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:nibble_algorithm_task_is_finished"
+
+\end_inset
+
+) and if so, the task is scheduled for further processing (line 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "code:nibble_algorithm_task_is_rescheduled"
+
+\end_inset
+
+).
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+IncMargin{1em}  
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+LinesNumbered  
+\end_layout
+
+\begin_layout Plain Layout
+
+ 
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+begin{algorithm}
+\end_layout
+
+\begin_layout Plain Layout
+
+%
+\backslash
+setcounter{AlgoLine}{0} 
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\series bold
+method
+\series default
+ NibblePotentialFieldMaker
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+sources
+\emph default
+ 
+\begin_inset Formula $\leftarrow$
+\end_inset
+
+ initPotentialSources()
+\begin_inset CommandInset label
+LatexCommand label
+name "code:nibble_algorithm_pot_src_init"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+workers
+\emph default
+ 
+\begin_inset Formula $\leftarrow$
+\end_inset
+
+ initWorkers()
+\begin_inset CommandInset label
+LatexCommand label
+name "code:nibble_algorithm_workers_init"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+workerManager
+\emph default
+ 
+\begin_inset Formula $\leftarrow$
+\end_inset
+
+ initWorkerManager(
+\emph on
+workers
+\emph default
+)
+\begin_inset CommandInset label
+LatexCommand label
+name "code:nibble_algorithm_worker_manager_init"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+foreach
+\series default
+ 
+\emph on
+s
+\emph default
+ 
+\series bold
+in
+\series default
+ 
+\emph on
+source
+\emph default
+ 
+\series bold
+do
+\series default
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+workerManager
+\emph default
+.scheduleToExecution(Task(
+\emph on
+s
+\emph default
+))
+\end_layout
+
+\begin_layout Standard
+
+\series bold
+end method
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace medskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\series bold
+class
+\series default
+ Worker {
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+Task 
+\emph on
+task
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace smallskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+method
+\series default
+ Worker(
+\emph on
+t
+\emph default
+)
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+task
+\emph default
+ 
+\begin_inset Formula $\leftarrow$
+\end_inset
+
+ 
+\emph on
+t
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+end method
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace smallskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+method
+\series default
+ go() {
+\begin_inset CommandInset label
+LatexCommand label
+name "code:nibble_algorithm_go_begin"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+if
+\series default
+ size(
+\emph on
+task
+\emph default
+) > optimalSize(
+\emph on
+task
+\emph default
+) 
+\series bold
+then 
+\series default
+
+\begin_inset CommandInset label
+LatexCommand label
+name "code:nibble_algorithm_task_size_check"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+split the '
+\emph on
+task
+\emph default
+' to several subtasks t
+\begin_inset Formula $_{1}$
+\end_inset
+
+
+\begin_inset Formula $,\ldots,$
+\end_inset
+
+t
+\begin_inset Formula $_{k}$
+\end_inset
+
+ so that every t
+\begin_inset Formula $_{i}$
+\end_inset
+
+ has an optimal size
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+schedule tasks t
+\begin_inset Formula $_{2}$
+\end_inset
+
+
+\begin_inset Formula $,\ldots,$
+\end_inset
+
+t
+\begin_inset Formula $_{k}$
+\end_inset
+
+ to execution
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+task
+\emph default
+
+\begin_inset Formula $\leftarrow$
+\end_inset
+
+ t
+\begin_inset Formula $_{1}$
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+task
+\emph default
+.makeStep()
+\begin_inset CommandInset label
+LatexCommand label
+name "code:nibble_algorithm_task_makeStep"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+if
+\series default
+ 
+\emph on
+task
+\emph default
+.isNotFinished() 
+\series bold
+then
+\series default
+
+\begin_inset CommandInset label
+LatexCommand label
+name "code:nibble_algorithm_task_is_finished"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\emph on
+workerManager
+\emph default
+.scheduleToExecution(
+\emph on
+task
+\emph default
+)
+\begin_inset CommandInset label
+LatexCommand label
+name "code:nibble_algorithm_task_is_rescheduled"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\series bold
+end method
+\series default
+
+\begin_inset CommandInset label
+LatexCommand label
+name "code:nibble_algorithm_go_end"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace smallskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\series bold
+end class
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+NoCaptionOfAlgo
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+caption{
+\backslash
+textbf{Code listing 
+\backslash
+thealgocf: } Nibble concurrent potenential field construction algorithm}
+ 
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "listing:nibble_code"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+end{algorithm}
+\end_layout
+
+\begin_layout Plain Layout
+
+
+\backslash
+DecMargin{1em} 
+\end_layout
+
+\end_inset
+
+ Because in the 
+\emph on
+Nibble
+\emph default
+ algorithm tasks are not permanently associated with workers (but the assignment
+ may change between steps), the situation that some workers throttle the
+ others will never happen again.
+ Moreover, the ability to split task into sub-tasks ensures that the algorithm
+ always tries to maximise the usage of workers.
+ As a result the 
+\emph on
+Nibble
+\emph default
+ algorithm works well even if there are some irregularities in the topology
+ of the space or in the distribution of potential sources.
+ 
+\end_layout
+
+\begin_layout Section
+Experimental results
+\end_layout
+
+\begin_layout Standard
+Both algorithms have been implemented and tested for potential fields of
+ different size and topology (figures 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:workers_distrib_v1_rect_and_corridor"
+
+\end_inset
+
+a, 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:workers_distrib_v1_rect_and_corridor"
+
+\end_inset
+
+b).
+ As an implementation platform Java Standard Edition 6 was used.
+ The performance tests were carried out on a server box equipped with four
+ dual core processors Intel Xeon E5310 and 3GB of RAM.
+ The concurrent implementations of the 
+\emph on
+Tear
+\emph default
+ and 
+\emph on
+Nibble
+\emph default
+ algorithms written in Java use standard objects and interfaces available
+ in the Java package 
+\emph on
+java.util.concurrent
+\emph default
+.
+ For instance, classes such as 
+\emph on
+Task
+\emph default
+ and 
+\emph on
+Worker
+\emph default
+ are implemented as instances of the interface 
+\emph on
+Runnable
+\emph default
+.
+ 
+\emph on
+WorkerManager
+\emph default
+ was implemented as a 
+\emph on
+ThreadPoolExecutor 
+\emph default
+equipped with customized 
+\emph on
+ThreadFactory
+\emph default
+.
+ During tests all the CPUs were available for the JVM 
+\emph on
+(Java Virtual Machine)
+\emph default
+.
+ From the observation of CPU usage it appears that JVM tries to maximize
+ utilization of all the available CPUs.
+ Because Java classes are loaded into JVM on demand and this property of
+ Java may forge the performance results (it may introduce super linear speedup),
+ every series of tests has been preceded by JVM warm-up.
+ During the warm-up phase the tested algorithm was run a couple of times
+ so that the run time of the algorithm stabilized around some value.
+ For both algorithms the appropriate charts showing dependency between the
+ number of workers and execution time are presented (figure: 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:alg_time"
+
+\end_inset
+
+).
+ Besides the performance the speed up of algorithms is also shown on charts
+ (figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:alg_speedup"
+
+\end_inset
+
+).
+ It is calculated as the quotient 
+\begin_inset Formula $T_{1}/T_{p}$
+\end_inset
+
+ where 
+\begin_inset Formula $T_{p}$
+\end_inset
+
+ is the execution time with the use of 
+\begin_inset Formula $p$
+\end_inset
+
+ workers.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename /Users/konrad/work/science/pubs/2009/algPolaPotencjalnego/fig/fig1b.pdf
+	scale 75
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset Graphics
+	filename /Users/konrad/work/science/pubs/2009/algPolaPotencjalnego/fig/fig2b.pdf
+	scale 75
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+Execution time of the 
+\emph on
+Tear
+\emph default
+ and 
+\emph on
+Nibble
+\emph default
+ algorithms with (a)
+\begin_inset space ~
+\end_inset
+
+a
+\begin_inset space ~
+\end_inset
+
+square room and (b)
+\begin_inset space ~
+\end_inset
+
+a
+\begin_inset space ~
+\end_inset
+
+room with a corridor
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:alg_time"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The conducted tests show that for a space with simple topology the multi-threade
+d version of the 
+\emph on
+Tear
+\emph default
+ algorithm is able to run almost three times faster than a single-thread
+ algorithm.
+ The multi-threaded 
+\emph on
+Nibble
+\emph default
+ algorithm is able to run two and a half times faster than its single-threaded
+ version (figure: 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:alg_speedup"
+
+\end_inset
+
+b).
+ The speedup is not linear.
+ This is because of many different reasons where the most important seem
+ to be as follows:
+\end_layout
+
+\begin_layout Itemize
+increase in synchronization overhead along the increase in number of workers,
+\end_layout
+
+\begin_layout Itemize
+demand for resources from Java Virtual Machine (garbage collecting, memory
+ allocation),
+\end_layout
+
+\begin_layout Itemize
+property of the algorithms that the value of potential for the given cell
+ might be calculated more than once.
+ 
+\end_layout
+
+\begin_layout Standard
+The first two of the above are conclusions from the profiling sessions.
+ The last one is a feature of both algorithms and is connected with the
+ fact that for some cells the value of potential is calculated more than
+ once by different threads.
+ Fortunately, tests prove, that the overhead connected with the last issue
+ is not so huge, and only about 
+\begin_inset Formula $3-5\%$
+\end_inset
+
+ of cells are updated more than once.
+ All the tests have been done for the grid size 
+\begin_inset Formula $1000\times1000$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename /Users/konrad/work/science/pubs/2009/algPolaPotencjalnego/fig/speedup1.pdf
+	scale 75
+
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset space ~
+\end_inset
+
+
+\begin_inset Graphics
+	filename /Users/konrad/work/science/pubs/2009/algPolaPotencjalnego/fig/speedup2.pdf
+	scale 75
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+Speedup of the 
+\emph on
+Tear
+\emph default
+ and 
+\emph on
+Nibble
+\emph default
+ algorithms with (a)
+\begin_inset space ~
+\end_inset
+
+a
+\begin_inset space ~
+\end_inset
+
+square room and (b)
+\begin_inset space ~
+\end_inset
+
+a
+\begin_inset space ~
+\end_inset
+
+room with a corridor
+\end_layout
+
+\end_inset
+
+
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:alg_speedup"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Summary
+\end_layout
+
+\begin_layout Standard
+In this paper the two concurrent algorithms of discrete potential field
+ calculation have been presented.
+ Both, the 
+\emph on
+Tear
+\emph default
+ and 
+\emph on
+Nibble
+\emph default
+ algorithms are able to accelerate potential field calculation on a multi-core
+ machine, however, depending on space topology and potential source deployment
+ both algorithms, might sometimes be better.
+ The preliminary tests prove that they offer up to threefold speedup using
+ five -- six processors.
+ The experiments have been conducted on an ordinary Linux based multi-core
+ computer and the whole solution has been implemented using freely available
+ technologies.
+ 
+\end_layout
+
+\begin_layout Standard
+Although the algorithms have been provisionally tested and tuned, it seems
+ that there is still some room for further improvement.
+ Some questions have also not yet been answered.
+ For instance, the question about the efficiency of these algorithms in
+ other software and hardware platforms is still open.
+ For this reason, further development of these algorithms, besides the theoretic
+al research, will also be focused on implementation issues.
+ The authors hope that work in this subject brings further interesting and
+ valuable results in future.
+ 
+\end_layout
+
+\begin_layout Section*
+Acknowledgment
+\end_layout
+
+\begin_layout Standard
+This research is financed by the Polish Ministry of Education and Science,
+ project no.: N N516 228735 and by AGH University of Science and Technology,
+ contract no.: 10.10.120.105.
+\end_layout
+
+\begin_layout Standard
+\begin_inset CommandInset bibtex
+LatexCommand bibtex
+bibfiles "/Users/konrad/work/science/biblio/common_biblio,/Users/konrad/work/science/biblio/saRobotics,/Users/konrad/work/science/biblio/ai_biblio"
+options "plain"
+
+\end_inset
+
+
+\end_layout
+
+\end_body
+\end_document
