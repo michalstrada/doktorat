@@ -44,7 +44,7 @@ if(ic_begin <= ic_minimal)
             [ic, wg] = CalculateInconsistency_Saaty(A);
             [~, pos_max] = max(wg);
 
-            if ((ic <= ic_begin) && (pos_max == pos_min_begin))
+            if ((ic <= ic_minimal) && (pos_max == pos_min_begin))
                 break;
             end
 
@@ -68,21 +68,22 @@ if(ic_begin <= ic_minimal)
                 changedPositionsIndexes = [changedPositionsIndexes, pos];
             end 
 
-            if ( A(pos_min_begin, pos) < wg(pos_min_begin)/wg(pos) )
-                A(pos_min_begin, pos) = ( 2*wg(pos_min_begin)/wg(pos) - A(pos_min_begin, pos)); %inconsistency on the same level, higher aij
+%            if ( A(pos_min_begin, pos) < wg(pos_min_begin)/wg(pos) )
+
+%                A(pos_min_begin, pos) = ( 2*wg(pos_min_begin)/wg(pos) - A(pos_min_begin, pos)); %inconsistency on the same level, higher aij
 %                A(pos_min_begin, pos) = ( wg(pos_min_begin)/wg(pos) + A(pos_min_begin, pos)); %inconsistency on the lower level, lower aij
-                A(pos, pos_min_begin) = 1/A(pos_min_begin, pos);
-            elseif ( A(pos_min_begin, pos) < k*wg(pos_max_begin)/wg(pos) )
+%                A(pos, pos_min_begin) = 1/A(pos_min_begin, pos);
+            if ( A(pos_min_begin, pos) < k*wg(pos_max_begin)/wg(pos) )
                 A(pos_min_begin, pos) = k*wg(pos_max_begin)/wg(pos);
                 A(pos, pos_min_begin) = 1/A(pos_min_begin, pos);
-%            elseif ( A(pos_min_begin, pos) < k*A(pos_max_begin, pos) )
-%                A(pos_min_begin, pos) = k*A(pos_max_begin, pos);
-%                A(pos, pos_min_begin) = 1/A(pos_min_begin, pos);
+            elseif ( A(pos_min_begin, pos) < k*A(pos_max_begin, pos) )
+                A(pos_min_begin, pos) = k*A(pos_max_begin, pos);
+                A(pos, pos_min_begin) = 1/A(pos_min_begin, pos);
             else
                 positionToMaximalize = [positionToMaximalize, pos];
             end
 
-
+%CalculateWeight(A, pos_max_begin, pos);
             iterations = iterations + 1;
         end
 
